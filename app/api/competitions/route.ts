@@ -6,7 +6,7 @@ import { makeJoinCode, slugify } from '@/lib/utils';
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.redirect(new URL('/login', request.url));
+  if (!user) return NextResponse.redirect(new URL('/login', request.url), 303);
 
   const formData = await request.formData();
   const parsed = createCompetitionSchema.safeParse({
@@ -34,5 +34,5 @@ export async function POST(request: Request) {
     },
   });
 
-  return NextResponse.redirect(new URL(`/app/competitions/${competition.id}`, request.url));
+  return NextResponse.redirect(new URL(`/app/competitions/${competition.id}`, request.url), 303);
 }

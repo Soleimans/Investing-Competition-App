@@ -2,7 +2,7 @@
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from 'recharts';
 
-type Point = {
+export type Point = {
   timestamp: string;
   [key: string]: string | number;
 };

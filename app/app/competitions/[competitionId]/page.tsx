@@ -1,7 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
-import { CompetitionChart } from '@/components/CompetitionChart';
+import { CompetitionChart, type Point } from '@/components/CompetitionChart';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { fetchUsdToEurRate } from '@/lib/market';
 import { formatMoney, toNumber } from '@/lib/utils';
 
 function roundTo15Minutes(date: Date) {
@@ -41,6 +42,8 @@ export default async function CompetitionPage({ params }: { params: Promise<{ co
   });
   if (!competition) notFound();
 
+  const usdToEurRate = await fetchUsdToEurRate().catch(() => 0.92);
+
   const latestByUser = new Map<string, (typeof competition.portfolioSnapshots)[number]>();
   for (let i = competition.portfolioSnapshots.length - 1; i >= 0; i -= 1) {
     const snapshot = competition.portfolioSnapshots[i];
@@ -52,7 +55,12 @@ export default async function CompetitionPage({ params }: { params: Promise<{ co
       const latest = latestByUser.get(member.userId);
       const memberTransactions = competition.transactions.filter((transaction) => transaction.userId === member.userId);
       const investedCapital = memberTransactions.reduce(
-        (sum, transaction) => sum + toNumber(transaction.quantity) * toNumber(transaction.pricePerShare),
+        (sum, transaction) => {
+          const price = toNumber(transaction.pricePerShare);
+          const quantity = toNumber(transaction.quantity);
+          const fx = transaction.assetType === 'CASH' || transaction.quoteCurrency === 'EUR' ? 1 : usdToEurRate;
+          return sum + quantity * price * fx;
+        },
         0,
       );
       const totalValue = latest ? toNumber(latest.totalValue) : investedCapital;
@@ -64,7 +72,7 @@ export default async function CompetitionPage({ params }: { params: Promise<{ co
   const myEntry = leaderboard.find((entry) => entry.member.userId === user.id);
   const rank = Math.max(1, leaderboard.findIndex((entry) => entry.member.userId === user.id) + 1 || 1);
 
-  const chartBuckets = new Map<string, Record<string, string | number>>();
+  const chartBuckets = new Map<string, Point>();
   const memberNames = competition.members.map((member) => member.user.name);
 
   for (const snapshot of competition.portfolioSnapshots) {
@@ -77,14 +85,22 @@ export default async function CompetitionPage({ params }: { params: Promise<{ co
     chartBuckets.set(bucket, row);
   }
 
-  const chartData = Array.from(chartBuckets.entries())
+  const chartData: Point[] = Array.from(chartBuckets.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([, row]) => {
+      const nextRow: Point = { ...row };
       for (const name of memberNames) {
-        if (!(name in row)) row[name] = 0;
+        if (!(name in nextRow)) nextRow[name] = 0;
       }
-      return row;
+      return nextRow;
     });
+
+  const fallbackChartData: Point[] = [
+    {
+      timestamp: new Date(competition.startDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+      ...Object.fromEntries(memberNames.map((name) => [name, 0])),
+    },
+  ];
 
   return (
     <main className="page stack">
@@ -110,7 +126,7 @@ export default async function CompetitionPage({ params }: { params: Promise<{ co
             <span className="muted">All members in EUR</span>
           </div>
           <CompetitionChart
-            data={chartData.length ? chartData : [{ timestamp: 'Start', ...Object.fromEntries(memberNames.map((name) => [name, 0])) }]}
+            data={chartData.length ? chartData : fallbackChartData}
             seriesKeys={memberNames}
           />
         </div>

@@ -1,11 +1,18 @@
 import { prisma } from '@/lib/prisma';
-import { fetchQuoteInEur } from '@/lib/market';
+import { fetchQuoteInEur, fetchUsdToEurRate } from '@/lib/market';
 import { toNumber } from '@/lib/utils';
 
 type PriceKey = `${string}:${string}`;
 
 function makeKey(ticker: string, quoteCurrency: string): PriceKey {
   return `${ticker.toUpperCase()}:${quoteCurrency.toUpperCase()}`;
+}
+
+function getSnapshotTimestamp() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  now.setMinutes(Math.floor(now.getMinutes() / 15) * 15);
+  return now;
 }
 
 export async function refreshMarketData() {
@@ -23,6 +30,7 @@ export async function refreshMarketData() {
   );
 
   const priceMap = new Map<PriceKey, number>();
+  const usdToEurRate = uniqueSymbols.some((symbol) => symbol.endsWith(':USD')) ? await fetchUsdToEurRate() : 1;
 
   for (const symbol of uniqueSymbols) {
     const [ticker, quoteCurrency] = symbol.split(':') as [string, 'USD' | 'EUR'];
@@ -30,12 +38,14 @@ export async function refreshMarketData() {
       const quote = await fetchQuoteInEur(ticker, quoteCurrency);
       priceMap.set(symbol, quote.eurPrice);
       await prisma.symbolPriceSnapshot.create({
-        data: { ticker, price: quote.eurPrice, currency: 'EUR', source: quote.source },
+        data: { ticker, price: quote.eurPrice, currency: 'EUR', source: quote.source, fetchedAt: getSnapshotTimestamp() },
       });
     } catch (error) {
       console.error(`Failed to fetch ${symbol}`, error);
     }
   }
+
+  const snapshottedAt = getSnapshotTimestamp();
 
   for (const competition of competitions) {
     for (const member of competition.members) {
@@ -46,15 +56,16 @@ export async function refreshMarketData() {
       for (const transaction of transactions) {
         const quantity = toNumber(transaction.quantity);
         const entryPrice = toNumber(transaction.pricePerShare);
-        const cost = quantity * entryPrice;
-        totalCost += cost;
+        const costFx = transaction.assetType === 'CASH' || transaction.quoteCurrency === 'EUR' ? 1 : usdToEurRate;
+        const costEur = quantity * entryPrice * costFx;
+        totalCost += costEur;
 
         if (transaction.assetType === 'CASH') {
-          totalValue += cost;
+          totalValue += costEur;
           continue;
         }
 
-        totalValue += quantity * (priceMap.get(makeKey(transaction.ticker, transaction.quoteCurrency)) ?? entryPrice);
+        totalValue += quantity * (priceMap.get(makeKey(transaction.ticker, transaction.quoteCurrency)) ?? (entryPrice * costFx));
       }
 
       await prisma.portfolioSnapshot.create({
@@ -64,6 +75,7 @@ export async function refreshMarketData() {
           totalCost,
           totalValue,
           pnl: totalValue - totalCost,
+          snapshottedAt,
         },
       });
     }

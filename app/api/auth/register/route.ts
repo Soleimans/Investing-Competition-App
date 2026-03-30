@@ -27,5 +27,5 @@ export async function POST(request: Request) {
   });
 
   await createSession(user.id);
-  return NextResponse.redirect(new URL('/app', request.url));
+  return NextResponse.redirect(new URL('/app', request.url), 303);
 }

@@ -8,7 +8,7 @@ export async function POST(
   { params }: { params: Promise<{ competitionId: string }> },
 ) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.redirect(new URL('/login', request.url));
+  if (!user) return NextResponse.redirect(new URL('/login', request.url), 303);
 
   const { competitionId } = await params;
   const membership = await prisma.competitionMember.findUnique({
@@ -46,5 +46,5 @@ export async function POST(
     },
   });
 
-  return NextResponse.redirect(new URL(`/app/competitions/${competitionId}`, request.url));
+  return NextResponse.redirect(new URL(`/app/competitions/${competitionId}`, request.url), 303);
 }

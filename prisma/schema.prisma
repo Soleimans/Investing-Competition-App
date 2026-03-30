@@ -27,18 +27,17 @@ enum AssetType {
 }
 
 model User {
-  id                  String                @id @default(cuid())
-  name                String                @unique
-  passwordHash        String
-  profileImageDataUrl String?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-
-  createdCompetitions Competition[]         @relation("CompetitionCreator")
-  memberships         CompetitionMember[]
-  transactions        InvestmentTransaction[]
-  portfolioSnapshots  PortfolioSnapshot[]
-  sessions            Session[]
+  id                    String                @id @default(cuid())
+  name                  String                @unique
+  passwordHash          String
+  profileImageDataUrl   String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  createdCompetitions   Competition[]         @relation("CompetitionCreator")
+  memberships           CompetitionMember[]
+  transactions          InvestmentTransaction[]
+  portfolioSnapshots    PortfolioSnapshot[]
+  sessions              Session[]
 }
 
 model Session {

@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.redirect(new URL('/login', request.url));
+  if (!user) return NextResponse.redirect(new URL('/login', request.url), 303);
 
   const formData = await request.formData();
   const parsed = joinCompetitionSchema.safeParse({ joinCode: String(formData.get('joinCode') || '').toUpperCase() });
@@ -25,5 +25,5 @@ export async function POST(request: Request) {
     data: { pinned: false },
   });
 
-  return NextResponse.redirect(new URL(`/app/competitions/${competition.id}`, request.url));
+  return NextResponse.redirect(new URL(`/app/competitions/${competition.id}`, request.url), 303);
 }

@@ -1,8 +1,17 @@
-async function fetchUsdToEurRate() {
+let usdToEurRateCache: { value: number; fetchedAt: number } | null = null;
+
+export async function fetchUsdToEurRate() {
+  const now = Date.now();
+  if (usdToEurRateCache && now - usdToEurRateCache.fetchedAt < 5 * 60 * 1000) {
+    return usdToEurRateCache.value;
+  }
+
   const response = await fetch('https://api.frankfurter.dev/v2/rate/USD/EUR', { cache: 'no-store' });
   if (!response.ok) throw new Error('USD/EUR conversion lookup failed');
   const data = (await response.json()) as { rate?: number };
   if (!data.rate || data.rate <= 0) throw new Error('Invalid USD/EUR conversion rate');
+
+  usdToEurRateCache = { value: data.rate, fetchedAt: now };
   return data.rate;
 }
 
@@ -25,6 +34,6 @@ export async function fetchQuoteInEur(ticker: string, quoteCurrency: 'USD' | 'EU
     nativePrice: data.c,
     nativeCurrency: quoteCurrency,
     eurPrice: data.c * rate,
-    source: 'finnhub+frankfurter',
+    source: quoteCurrency === 'USD' ? 'finnhub+frankfurter' : 'finnhub',
   };
 }

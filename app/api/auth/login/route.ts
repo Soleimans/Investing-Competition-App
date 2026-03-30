@@ -19,5 +19,5 @@ export async function POST(request: Request) {
   if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
 
   await createSession(user.id);
-  return NextResponse.redirect(new URL('/app', request.url));
+  return NextResponse.redirect(new URL('/app', request.url), 303);
 }
